@@ -23,34 +23,18 @@ Resources:
       Policies:
         - AWSXrayWriteOnlyAccess
         - S3CrudPolicy:
-            BucketName: !Ref websiteHosting
-        - Statement:
-            - Effect: Allow
-              Action:
-                - s3:PutObjectAcl
-              Resource:
-                - !Sub ${websiteHosting.Arn}/*
+            BucketName: !Ref Bucket
       Environment:
         Variables:
           XDG_CONFIG_HOME: /tmp/.config
-          BUCKET_NAME: !Ref websiteHosting
-          BUCKET_ARN: !GetAtt websiteHosting.Arn
+          BUCKET_NAME: !Ref Bucket
+          BUCKET_ARN: !GetAtt Bucket.Arn
     Metadata:
       StackeryName: deployFrontEnd
   deployFrontEndDeployTrigger:
     Type: Custom::FunctionDeployTrigger
     Properties:
       ServiceToken: !GetAtt deployFrontEnd.Arn
-  websiteHosting:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub ${AWS::StackName}-websitehosting
-      AccessControl: PublicRead
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html
-    Metadata:
-      StackeryName: S3 Website Hosting
   api:
     Type: AWS::Serverless::Api
     Properties:
@@ -81,6 +65,10 @@ Resources:
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+        - S3CrudPolicy:
+            BucketName: !Ref Bucket2
       Events:
         apiGET:
           Type: Api
@@ -88,8 +76,34 @@ Resources:
             Path: /
             Method: GET
             RestApiId: !Ref api
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+          TABLE_ARN: !GetAtt Table.Arn
+          BUCKET_NAME: !Ref Bucket2
+          BUCKET_ARN: !GetAtt Bucket2.Arn
     Metadata:
       StackeryName: getWelcomePage
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-bucket-${AWS::AccountId}
+  Bucket2:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-bucket2-${AWS::AccountId}
 Parameters:
   StackeryStackTagName:
     Type: String
